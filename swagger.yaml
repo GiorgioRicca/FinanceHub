@@ -1,0 +1,715 @@
+openapi: 3.0.0
+info:
+  title: FinanceHub API
+  version: 1.0.0
+  description: API completa per la piattaforma FinanceHub - Gestione finanziaria con investimenti, prestiti e conti
+  contact:
+    name: FinanceHub Support
+    email: support@financehub.it
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000
+    description: Development Server
+  - url: https://api.financehub.it
+    description: Production Server
+
+tags:
+  - name: Dashboard
+    description: Endpoint per dashboard e riassunto finanziario
+  - name: Accounts
+    description: Gestione conti bancari e finanziari
+  - name: Investments
+    description: Trading e gestione portafoglio investimenti
+  - name: Loans
+    description: Richieste e gestione prestiti
+  - name: Transactions
+    description: Storico e gestione transazioni
+  - name: Notifications
+    description: Sistema notifiche utente
+  - name: Assets
+    description: Asset disponibili per trading
+  - name: Calculations
+    description: Calcoli finanziari e simulazioni
+
+paths:
+  /api/dashboard/{userId}:
+    get:
+      tags:
+        - Dashboard
+      summary: Ottiene riassunto dashboard finanziaria
+      description: Restituisce il riassunto completo della situazione finanziaria dell'utente incluso saldo totale, investimenti, spese mensili e prestiti attivi
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID univoco dell'utente
+          example: demo-user-123
+      responses:
+        '200':
+          description: Riassunto dashboard ottenuto con successo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSummary'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/accounts/{userId}:
+    get:
+      tags:
+        - Accounts
+      summary: Ottiene lista conti utente
+      description: Restituisce tutti i conti bancari e finanziari associati all'utente
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID univoco dell'utente
+          example: demo-user-123
+      responses:
+        '200':
+          description: Lista conti ottenuta con successo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/accounts:
+    post:
+      tags:
+        - Accounts
+      summary: Crea nuovo conto
+      description: Crea un nuovo conto bancario o finanziario per l'utente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - name
+                - type
+              properties:
+                userId:
+                  type: string
+                  example: demo-user-123
+                name:
+                  type: string
+                  example: Conto Corrente Principale
+                type:
+                  type: string
+                  enum: [checking, savings, investment]
+                  example: checking
+                balance:
+                  type: string
+                  example: "1000.00"
+      responses:
+        '201':
+          description: Conto creato con successo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/investments/{userId}:
+    get:
+      tags:
+        - Investments
+      summary: Ottiene portafoglio investimenti utente
+      description: Restituisce tutti gli investimenti e il portafoglio dell'utente con valori aggiornati
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID univoco dell'utente
+          example: demo-user-123
+      responses:
+        '200':
+          description: Portafoglio investimenti ottenuto con successo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Investment'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/assets:
+    get:
+      tags:
+        - Assets
+      summary: Ottiene asset disponibili per trading
+      description: Restituisce la lista completa di asset italiani disponibili per l'investimento (azioni, obbligazioni, ETF)
+      responses:
+        '200':
+          description: Lista asset ottenuta con successo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AvailableAsset'
+              example:
+                - symbol: "ENI"
+                  name: "Eni S.p.A."
+                  type: "stock"
+                  sector: "Energia"
+                  currentPrice: "14.82"
+                - symbol: "ENEL"
+                  name: "Enel"
+                  type: "stock"
+                  sector: "Utilities"
+                  currentPrice: "6.98"
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/investments/buy:
+    post:
+      tags:
+        - Investments
+      summary: Acquista investimento
+      description: Esegue l'acquisto di un investimento, aggiorna il portafoglio e crea la transazione associata. Calcola automaticamente il prezzo medio ponderato per accumuli.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - symbol
+                - shares
+                - accountId
+              properties:
+                userId:
+                  type: string
+                  example: demo-user-123
+                symbol:
+                  type: string
+                  example: ENI
+                  description: Simbolo dell'asset da acquistare
+                shares:
+                  type: number
+                  example: 5
+                  description: Numero di azioni/quote da acquistare
+                accountId:
+                  type: string
+                  example: acc-123
+                  description: ID del conto da cui prelevare i fondi
+      responses:
+        '201':
+          description: Investimento acquistato con successo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  investment:
+                    $ref: '#/components/schemas/Investment'
+                  transaction:
+                    $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/investments/sell:
+    post:
+      tags:
+        - Investments
+      summary: Vende investimento
+      description: Esegue la vendita parziale o totale di un investimento, aggiorna il portafoglio e crea la transazione associata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - symbol
+                - shares
+                - accountId
+              properties:
+                userId:
+                  type: string
+                  example: demo-user-123
+                symbol:
+                  type: string
+                  example: ENI
+                  description: Simbolo dell'asset da vendere
+                shares:
+                  type: number
+                  example: 3
+                  description: Numero di azioni/quote da vendere
+                accountId:
+                  type: string
+                  example: acc-123
+                  description: ID del conto su cui accreditare i fondi
+      responses:
+        '200':
+          description: Investimento venduto con successo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  investment:
+                    $ref: '#/components/schemas/Investment'
+                  transaction:
+                    $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/loans/{userId}:
+    get:
+      tags:
+        - Loans
+      summary: Ottiene prestiti utente
+      description: Restituisce tutti i prestiti attivi dell'utente con dettagli su saldo residuo e rate mensili
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID univoco dell'utente
+          example: demo-user-123
+      responses:
+        '200':
+          description: Lista prestiti ottenuta con successo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Loan'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/loan-workflow/applications/{userId}:
+    get:
+      tags:
+        - Loans
+      summary: Ottiene richieste prestiti utente
+      description: Restituisce tutte le richieste di prestito dell'utente con stato di approvazione
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID univoco dell'utente
+          example: demo-user-123
+      responses:
+        '200':
+          description: Lista richieste prestiti ottenuta con successo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LoanApplication'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/loan-workflow/apply:
+    post:
+      tags:
+        - Loans
+      summary: Richiesta nuovo prestito
+      description: Invia una nuova richiesta di prestito con valutazione asincrona tramite analisi DTI (Debt-to-Income)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - amount
+                - income
+                - employmentType
+                - creditScore
+              properties:
+                type:
+                  type: string
+                  enum: [personal, auto, mortgage]
+                  example: personal
+                  description: Tipologia di prestito
+                amount:
+                  type: number
+                  example: 15000
+                  description: Importo richiesto in EUR
+                income:
+                  type: number
+                  example: 45000
+                  description: Reddito annuo in EUR
+                employmentType:
+                  type: string
+                  enum: [full-time, part-time, self-employed, unemployed]
+                  example: full-time
+                creditScore:
+                  type: number
+                  minimum: 300
+                  maximum: 850
+                  example: 720
+                  description: Punteggio di credito FICO
+      responses:
+        '201':
+          description: Richiesta prestito creata con successo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanApplication'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/transactions/recent/{userId}:
+    get:
+      tags:
+        - Transactions
+      summary: Ottiene transazioni recenti utente
+      description: Restituisce le transazioni recenti dell'utente con categorizzazione automatica e dettagli conto
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID univoco dell'utente
+          example: demo-user-123
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+            maximum: 100
+          description: Numero massimo di transazioni da restituire
+          example: 10
+      responses:
+        '200':
+          description: Transazioni ottenute con successo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transaction'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/notifications/{userId}:
+    get:
+      tags:
+        - Notifications
+      summary: Ottiene notifiche utente
+      description: Restituisce tutte le notifiche dell'utente con stato di lettura
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID univoco dell'utente
+          example: demo-user-123
+      responses:
+        '200':
+          description: Notifiche ottenute con successo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/notifications/{userId}/unread:
+    get:
+      tags:
+        - Notifications
+      summary: Ottiene notifiche non lette
+      description: Restituisce solo le notifiche non lette dell'utente per badge e contatori
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID univoco dell'utente
+          example: demo-user-123
+      responses:
+        '200':
+          description: Notifiche non lette ottenute con successo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: demo-user-123
+        username:
+          type: string
+          example: mario.rossi
+        name:
+          type: string
+          example: Mario Rossi
+        email:
+          type: string
+          example: mario.rossi@email.com
+
+    Account:
+      type: object
+      properties:
+        userId:
+          type: string
+          example: demo-user-123
+        name:
+          type: string
+          example: Conto Corrente Principale
+        accountNumber:
+          type: string
+          example: IT60X0542811101000000123456
+        balance:
+          type: string
+          example: "83204.80"
+        type:
+          type: string
+          enum: [checking, savings, investment]
+          example: checking
+
+    Investment:
+      type: object
+      properties:
+        userId:
+          type: string
+          example: demo-user-123
+        symbol:
+          type: string
+          example: ENI
+        shares:
+          type: number
+          example: 100
+        purchasePrice:
+          type: string
+          example: "14.82"
+        currentPrice:
+          type: string
+          example: "14.95"
+        totalValue:
+          type: string
+          example: "1495.00"
+
+    AvailableAsset:
+      type: object
+      properties:
+        symbol:
+          type: string
+          example: ENI
+        name:
+          type: string
+          example: Eni S.p.A.
+        type:
+          type: string
+          enum: [stock, bond, etf]
+          example: stock
+        sector:
+          type: string
+          example: Energia
+        currentPrice:
+          type: string
+          example: "14.82"
+        description:
+          type: string
+          example: Azienda energetica italiana
+
+    Loan:
+      type: object
+      properties:
+        userId:
+          type: string
+          example: demo-user-123
+        type:
+          type: string
+          enum: [mortgage, auto, personal]
+          example: mortgage
+        principal:
+          type: string
+          example: "125000.00"
+        interestRate:
+          type: string
+          example: "3.5"
+        remainingBalance:
+          type: string
+          example: "125000.00"
+        monthlyPayment:
+          type: string
+          example: "612.34"
+        termMonths:
+          type: number
+          example: 360
+
+    LoanApplication:
+      type: object
+      properties:
+        id:
+          type: string
+          example: loan-app-123
+        userId:
+          type: string
+          example: demo-user-123
+        type:
+          type: string
+          enum: [personal, auto, mortgage]
+          example: personal
+        amount:
+          type: string
+          example: "15000.00"
+        income:
+          type: string
+          example: "45000.00"
+        employmentType:
+          type: string
+          example: full-time
+        creditScore:
+          type: number
+          example: 720
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+          example: pending
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          example: txn-123
+        accountId:
+          type: string
+          example: acc-123
+        accountName:
+          type: string
+          example: Conto Corrente Principale
+        type:
+          type: string
+          enum: [debit, credit]
+          example: debit
+        category:
+          type: string
+          enum: [Investimento, Prestito, Bonifico, Spesa]
+          example: Investimento
+        description:
+          type: string
+          example: Acquisto 5 azioni Eni S.p.A.
+        amount:
+          type: string
+          example: "-74.10"
+        date:
+          type: string
+          format: date-time
+          example: "2025-09-17T10:30:00Z"
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          example: notif-123
+        userId:
+          type: string
+          example: demo-user-123
+        title:
+          type: string
+          example: Acquisto completato
+        message:
+          type: string
+          example: L'investimento è stato aggiunto al tuo portafoglio
+        type:
+          type: string
+          enum: [success, warning, info, error]
+          example: success
+        isRead:
+          type: boolean
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-09-17T10:30:00Z"
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalBalance:
+          type: string
+          example: "128435.60"
+        totalInvestments:
+          type: string
+          example: "45230.80"
+        monthlyExpenses:
+          type: string
+          example: "2341.50"
+        activeLoans:
+          type: string
+          example: "125000.00"
+        portfolioGrowth:
+          type: string
+          example: "+3.2"
+        expenseChange:
+          type: string
+          example: "-12.5"
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Errore durante l'elaborazione della richiesta
+
+  responses:
+    NotFound:
+      description: Risorsa non trovata
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Errore di validazione dati
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ServerError:
+      description: Errore interno del server
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
