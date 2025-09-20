@@ -3,10 +3,11 @@ npm install
 npm i -D concurrently
 
 python -m venv venv
-# macOS/Linux
+## macOS/Linux
 source venv/bin/activate
-# Windows (PowerShell)
-# .\venv\Scripts\Activate.ps1
+
+## Windows (PowerShell)
+.\venv\Scripts\Activate.ps1
 
 
 pip install -r server/requirements.txt || \
