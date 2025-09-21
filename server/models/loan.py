@@ -3,11 +3,13 @@
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, Optional
 
 
 LoanType = Literal['personal', 'mortgage', 'auto', 'business']
 LoanStatus = Literal['active', 'paid_off', 'defaulted', 'pending']
+LoanApplicationStatus = Literal['pending', 'evaluating', 'approved', 'rejected', 'requires_documents']
+
 
 
 @dataclass
@@ -57,3 +59,33 @@ class Loan:
         if self.monthly_payment <= 0 or self.remaining_balance <= 0:
             return 0
         return int(self.remaining_balance / self.monthly_payment) + 1
+
+@dataclass 
+class LoanApplication:
+    """Loan application domain entity."""
+    id: str
+    user_id: str
+    type: LoanType
+    amount: Decimal
+    purpose: str
+    income: Decimal
+    employment_status: str
+    term_months: int
+    status: LoanApplicationStatus
+    credit_score: Optional[int]
+    estimated_rate: Optional[Decimal]
+    estimated_monthly: Optional[Decimal] 
+    submitted_date: datetime
+    approved_date: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
+
+    def __post_init__(self):
+        """Validate loan application data after initialization."""
+        if not self.user_id:
+            raise ValueError("User ID is required")
+        if self.type not in ['personal', 'mortgage', 'auto', 'business']:
+            raise ValueError("Invalid loan type")
+        if self.amount <= 0:
+            raise ValueError("Loan amount must be positive")
+        if self.income <= 0:
+            raise ValueError("Income must be positive")

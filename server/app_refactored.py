@@ -162,6 +162,9 @@ def register_routes(app: Flask) -> None:
     @app.route('/accounts')
     @app.route('/settings')
     @app.route('/loan-workflow')
+    @app.route('/your-requests')
+    @app.route('/asset-marketplace')
+
     def serve_react_app():
         
         return send_from_directory(app.static_folder, 'index.html')
@@ -363,29 +366,61 @@ def register_routes(app: Flask) -> None:
     
     @app.route('/api/loan-workflow/applications/<user_id>', methods=['GET'])
     def get_loan_applications(user_id: str):
-        
         resolved_user_id = resolve_user_id(user_id)
+        
+        loan_applications = loan_service.get_user_loan_applications(resolved_user_id)
+        
         loans = loan_service.get_user_loans(resolved_user_id)
         
-        
         applications = []
-        for loan in loans:
-            loan_data = loan_schema.dump(loan)
+        
+        def translate_status(status):
+            status_translations = {
+                "pending": "In Attesa",
+                "evaluating": "In Valutazione", 
+                "approved": "Approvato",
+                "rejected": "Rifiutato",
+                "requires_documents": "Documenti Richiesti"
+            }
+            return status_translations.get(status, status)
+
+        for app in loan_applications:
             application = {
-                "id": loan_data["id"],
-                "type": loan_data["type"],
-                "amount": str(loan_data["amount"]),
-                "purpose": f"{loan_data['type']} loan",
-                "income": "75000",  
-                "employmentStatus": "employed",
-                "creditScore": 750,
-                "status": "approved" if loan_data["status"] == "active" else loan_data["status"],
-                "submittedDate": loan_data.get("created_at", "2025-09-20T00:00:00"),
-                "estimatedRate": f"{float(loan_data['interest_rate']) * 100:.2f}%",
-                "estimatedMonthly": str(loan_data["monthly_payment"]),
-                "approvedDate": loan_data.get("created_at", "2025-09-20T00:00:00")
+                "id": app.id,
+                "type": app.type,
+                "amount": str(app.amount),
+                "purpose": app.purpose,
+                "income": str(app.income),
+                "employmentStatus": app.employment_status,
+                "creditScore": app.credit_score or 750,
+                "status": translate_status(app.status),
+                "submittedDate": app.submitted_date.isoformat(),
+                "estimatedRate": f"{float(app.estimated_rate or 8.5):.2f}%",
+                "estimatedMonthly": str(app.estimated_monthly or 0),
+                "approvedDate": app.approved_date.isoformat() if app.approved_date else None,
+                "rejectionReason": app.rejection_reason
             }
             applications.append(application)
+        
+        for loan in loans:
+            loan_data = loan_schema.dump(loan)
+            existing_ids = [app["id"] for app in applications]
+            if loan_data["id"] not in existing_ids:
+                application = {
+                    "id": loan_data["id"],
+                    "type": loan_data["type"],
+                    "amount": str(loan_data["amount"]),
+                    "purpose": f"{loan_data['type']} loan",
+                    "income": "75000",  # Mock data for demo
+                    "employmentStatus": "employed",
+                    "creditScore": 750,
+                    "status": translate_status("approved") if loan_data["status"] == "active" else translate_status(loan_data["status"]),
+                    "submittedDate": loan_data.get("created_at", "2025-09-20T00:00:00"),
+                    "estimatedRate": f"{float(loan_data['interest_rate']) * 100:.2f}%",
+                    "estimatedMonthly": str(loan_data["monthly_payment"]),
+                    "approvedDate": loan_data.get("created_at", "2025-09-20T00:00:00")
+                }
+                applications.append(application)
         
         return json_camel(applications)
     
@@ -414,6 +449,16 @@ def register_routes(app: Flask) -> None:
         user_id = data.get('userId', 'demo-user-123')
         data['userId'] = resolve_user_id(user_id)
         
+        from decimal import Decimal
+        application = loan_service.create_loan_application(
+            user_id=data['userId'],
+            loan_type=data['type'],
+            amount=Decimal(str(data['amount'])),
+            purpose=data.get('purpose', f"{data['type']} loan"),
+            income=Decimal(str(data['income'])),
+            employment_status=data['employmentStatus'],
+            term_months=int(data.get('termMonths', 60))
+        )
         
         notification_service.create_notification(
             user_id=data['userId'],
@@ -423,23 +468,23 @@ def register_routes(app: Flask) -> None:
         )
         
         
-        loan_service.process_loan_application_async(data)
+        loan_service.process_loan_application_async(data, application.id)
         
-        
-        application_id = f"LOAN-{str(uuid4())[:8]}"
-        
-        
+        # Return immediate response with saved application details
         return json_camel({
-            "id": application_id,
-            "type": data['type'],
-            "amount": data['amount'],
-            "purpose": data.get('purpose', f"{data['type']} loan"),
-            "income": data['income'],
-            "employmentStatus": data['employmentStatus'],
-            "status": "pending",
-            "submittedDate": datetime.now().isoformat(),
-            "message": "Loan application submitted successfully. DTI evaluation in progress.",
-            "estimatedProcessingTime": "60 seconds (DTI evaluation)"
+            "id": application.id,
+            "type": application.type,
+            "amount": str(application.amount),
+            "purpose": application.purpose,
+            "income": str(application.income),
+            "employmentStatus": application.employment_status,
+            "creditScore": application.credit_score,
+            "status": application.status,
+            "submittedDate": application.submitted_date.isoformat(),
+            "estimatedRate": f"{float(application.estimated_rate):.2f}%",
+            "estimatedMonthly": str(application.estimated_monthly),
+            "message": "Richiesta di prestito avvenuta con successoy. E' in corso la valutazione DTI",
+            "estimatedProcessingTime": "60 secondi (DTI evaluation)"
         }, 201)
     
     
@@ -734,7 +779,7 @@ def register_routes(app: Flask) -> None:
     @app.route('/api/notifications/<notification_id>/read', methods=['POST'])
     def mark_notification_read(notification_id: str):
         
-        user_id = request.json.get('user_id')
+        user_id = "demo-user-123"
         if not user_id:
             return jsonify({"error": "user_id is required"}), 400
         

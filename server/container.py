@@ -5,6 +5,8 @@ from repositories.user_repository import UserRepository
 from repositories.account_repository import AccountRepository
 from repositories.investment_repository import InvestmentRepository, AvailableAssetRepository
 from repositories.loan_repository import LoanRepository
+from repositories.loan_application_repository import LoanApplicationRepository
+from repositories.transaction_repository import TransactionRepository
 from repositories.transaction_repository import TransactionRepository
 from repositories.notification_repository import NotificationRepository
 
@@ -53,8 +55,10 @@ class Container:
         investment_repository = InvestmentRepository()
         available_asset_repository = AvailableAssetRepository()
         loan_repository = LoanRepository()
+        loan_application_repository = LoanApplicationRepository()
         transaction_repository = TransactionRepository()
         notification_repository = NotificationRepository()
+        
         
         
         self.register('user_repository', user_repository)
@@ -62,8 +66,10 @@ class Container:
         self.register('investment_repository', investment_repository)
         self.register('available_asset_repository', available_asset_repository)
         self.register('loan_repository', loan_repository)
+        self.register('loan_application_repository', loan_application_repository)
         self.register('transaction_repository', transaction_repository)
         self.register('notification_repository', notification_repository)
+        
         
         
         notification_service = NotificationService(notification_repository)
@@ -81,6 +87,7 @@ class Container:
         )
         loan_service = LoanService(
             loan_repository,
+            loan_application_repository,
             account_repository,
             transaction_repository,
             notification_service

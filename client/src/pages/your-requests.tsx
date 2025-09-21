@@ -72,22 +72,24 @@ export default function YourRequests() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "approved": return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100";
-      case "pending": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100";
-      case "requires_documents": return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100";
-      case "rejected": return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100";
-      case "completed": return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100";
+      case "Approvato": return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100";
+      case "In Attesa": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100";
+      case "In Valutazione": return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100";
+      case "Documenti Richiesti": return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100";
+      case "Rifiutato": return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100";
+      case "Completato": return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100";
       default: return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100";
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "approved": return CheckCircle;
-      case "completed": return CheckCircle;
-      case "pending": return Clock;
-      case "requires_documents": return AlertCircle;
-      case "rejected": return AlertCircle;
+      case "Approvato": return CheckCircle;
+      case "Completato": return CheckCircle;
+      case "In Attesa": return Clock;
+      case "In Valutazione": return Clock;
+      case "Documenti Richiesti": return AlertCircle;
+      case "Rifiutato": return AlertCircle;
       default: return FileText;
     }
   };
@@ -195,10 +197,7 @@ export default function YourRequests() {
                               </h4>
                               <Badge className={getStatusColor(application.status)}>
                                 <StatusIcon className="h-3 w-3 mr-1" />
-                                {application.status === "approved" ? "Approvato" :
-                                 application.status === "pending" ? "In Attesa" :
-                                 application.status === "requires_documents" ? "Documenti Richiesti" :
-                                 "Rifiutato"}
+                                {application.status}
                               </Badge>
                             </div>
                             <p className="text-sm text-neutral-600 mb-1">{application.purpose}</p>

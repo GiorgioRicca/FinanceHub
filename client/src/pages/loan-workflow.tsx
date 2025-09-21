@@ -139,20 +139,24 @@ export default function LoanWorkflow() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "approved": return "bg-green-100 text-green-800";
-      case "pending": return "bg-yellow-100 text-yellow-800";
-      case "requires_documents": return "bg-blue-100 text-blue-800";
-      case "rejected": return "bg-red-100 text-red-800";
+      case "Approvato": return "bg-green-100 text-green-800";
+      case "In Valutazione":
+      case "In Attesa":
+           return "bg-yellow-100 text-yellow-800";
+      case "Documenti Richiesti": return "bg-blue-100 text-blue-800";
+      case "Rifiutato": return "bg-red-100 text-red-800";
       default: return "bg-gray-100 text-gray-800";
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "approved": return CheckCircle;
-      case "pending": return Clock;
-      case "requires_documents": return FileText;
-      case "rejected": return AlertCircle;
+      case "Approvato": return CheckCircle;
+      case "In Valutazione":
+      case "In Attesa":
+        return Clock;
+      case "Documenti Richiesti": return FileText;
+      case "Rifiutato": return AlertCircle;
       default: return Clock;
     }
   };
@@ -319,9 +323,7 @@ export default function LoanWorkflow() {
                               </h4>
                               <Badge className={getStatusColor(app.status)}>
                                 <StatusIcon className="h-3 w-3 mr-1" />
-                                {app.status === "approved" ? "Approvato" :
-                                 app.status === "pending" ? "In Valutazione" :
-                                 app.status === "requires_documents" ? "Documenti Richiesti" : "Rifiutato"}
+                                {app.status}
                               </Badge>
                             </div>
                             <p className="text-sm text-neutral-600 mt-1">

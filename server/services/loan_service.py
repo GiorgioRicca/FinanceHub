@@ -6,8 +6,9 @@ from typing import List, Optional, Dict, Any
 from decimal import Decimal
 from datetime import datetime
 from uuid import uuid4
-from models.loan import Loan, LoanType, LoanStatus
+from models.loan import Loan, LoanApplication, LoanType, LoanStatus, LoanApplicationStatus
 from repositories.loan_repository import LoanRepository
+from repositories.loan_application_repository import LoanApplicationRepository
 from repositories.account_repository import AccountRepository
 from repositories.transaction_repository import TransactionRepository
 
@@ -22,10 +23,12 @@ class LoanService:
     
     def __init__(self,
                  loan_repository: LoanRepository,
+                 loan_application_repository: LoanApplicationRepository,
                  account_repository: AccountRepository,
                  transaction_repository: TransactionRepository,
                  notification_service):
         self.loan_repository = loan_repository
+        self.loan_application_repository = loan_application_repository
         self.account_repository = account_repository
         self.transaction_repository = transaction_repository
         self.notification_service = notification_service
@@ -33,7 +36,57 @@ class LoanService:
     def get_user_loans(self, user_id: str) -> List[Loan]:
         
         return self.loan_repository.find_by_user_id(user_id)
-
+    
+    def get_active_loans(self, user_id: str) -> List[Loan]:
+        return self.loan_repository.find_active_loans(user_id)
+    
+    def get_user_loan_applications(self, user_id: str) -> List[LoanApplication]:
+        """Get all loan applications for a user."""
+        return self.loan_application_repository.find_by_user_id(user_id)
+    
+    def create_loan_application(self, user_id: str, loan_type: LoanType, amount: Decimal,
+                               purpose: str, income: Decimal, employment_status: str,
+                               term_months: int) -> LoanApplication:
+        """Create a new loan application."""
+        # Estimate credit score for demo (normally this would come from credit bureau)
+        credit_score = 750  # Default for demo
+        
+        # Estimate interest rate based on loan type and credit score
+        base_rates = {
+            'personal': Decimal('8.5'),
+            'auto': Decimal('6.2'),
+            'mortgage': Decimal('4.8'),
+            'business': Decimal('9.5')
+        }
+        estimated_rate = base_rates.get(loan_type, Decimal('8.5'))
+        
+        # Calculate estimated monthly payment
+        monthly_interest_rate = estimated_rate / Decimal('100') / Decimal('12')
+        if monthly_interest_rate > 0:
+            estimated_monthly = amount * (
+                monthly_interest_rate * (1 + monthly_interest_rate) ** term_months
+            ) / ((1 + monthly_interest_rate) ** term_months - 1)
+        else:
+            estimated_monthly = amount / term_months
+        
+        # Create loan application
+        application = LoanApplication(
+            id=str(uuid4()),
+            user_id=user_id,
+            type=loan_type,
+            amount=amount,
+            purpose=purpose,
+            income=income,
+            employment_status=employment_status,
+            term_months=term_months,
+            status='pending',
+            credit_score=credit_score,
+            estimated_rate=estimated_rate,
+            estimated_monthly=estimated_monthly,
+            submitted_date=datetime.now()
+        )
+        
+        return self.loan_application_repository.create(application)
     
     def create_loan(self, user_id: str, loan_type: LoanType, amount: Decimal,
                    interest_rate: Decimal, term_months: int) -> Loan:
@@ -182,10 +235,19 @@ class LoanService:
             min_income = Decimal('2000')  
             
             
+            if employment_status in ['employed', 'self_employed']:
+                max_dti_threshold = max_dti  
+                min_income_threshold = min_income  
+            elif employment_status in ['unemployed', 'retired']:
+                max_dti_threshold = Decimal('25')  
+                min_income_threshold = Decimal('3000')  
+            else:
+                max_dti_threshold = Decimal('20')
+                min_income_threshold = Decimal('4000')
+            
             approved = (
-                dti_ratio <= max_dti and
-                monthly_income >= min_income and
-                employment_status in ['employed', 'self_employed'] and
+                dti_ratio <= max_dti_threshold and
+                monthly_income >= min_income_threshold and
                 amount >= Decimal('1000') and
                 amount <= Decimal('1000000')
             )
@@ -211,29 +273,43 @@ class LoanService:
     def _get_evaluation_reason(self, approved: bool, dti_ratio: Decimal, monthly_income: Decimal, employment_status: str) -> str:
         
         if approved:
-            return f"Prestito approvato. DTI: {dti_ratio:.1f}%, reddito sostenibile."
+            return f"Prestito approvato. DTI: {dti_ratio:.1f}%, reddito sostenibile per {employment_status}."
         
         reasons = []
-        if dti_ratio > Decimal('40'):
-            reasons.append(f"DTI troppo alto ({dti_ratio:.1f}% > 40%)")
-        if monthly_income < Decimal('2000'):
-            reasons.append(f"Reddito insufficiente (€{monthly_income:.0f} < €2000)")
-        if employment_status not in ['employed', 'self_employed']:
-            reasons.append("Stato occupazionale non valido")
+            
+        if employment_status in ['employed', 'self_employed']:
+            max_dti_threshold = Decimal('40')
+            min_income_threshold = Decimal('2000')
+        elif employment_status in ['unemployed', 'retired']:
+            max_dti_threshold = Decimal('25')
+            min_income_threshold = Decimal('3000')
+        else:
+            max_dti_threshold = Decimal('20')
+            min_income_threshold = Decimal('4000')
         
+        if dti_ratio > max_dti_threshold:
+            reasons.append(f"DTI troppo alto ({dti_ratio:.1f}% > {max_dti_threshold}% per {employment_status})")
+        if monthly_income < min_income_threshold:
+            reasons.append(f"Reddito insufficiente (€{monthly_income:.0f} < €{min_income_threshold} per {employment_status})")
+
         return "Prestito rifiutato: " + ", ".join(reasons)
     
-    def process_loan_application_async(self, application_data: Dict[str, Any]) -> None:
-        
+    def process_loan_application_async(self, application_data: Dict[str, Any], application_id: str) -> None:
+        """Process loan application asynchronously (simulate evaluation delay)."""
         def evaluate_and_notify():
             try:
-
+                self.loan_application_repository.update_status(application_id, 'evaluating')
+                
                 time.sleep(60)
                 
                 user_id = application_data['userId']
                 evaluation = self.evaluate_loan_application(application_data)
                 
                 if evaluation['approved']:
+                    application = self.loan_application_repository.get_by_id(application_id)
+                    if application:
+                        application.status = 'approved'
+                        application.approved_date = datetime.now()
                     
                     loan_type = application_data['type']
                     amount = Decimal(str(application_data['amount']))
@@ -267,6 +343,8 @@ class LoanService:
                     )
                 else:
                     
+                    self.loan_application_repository.update_status(application_id, 'rejected', evaluation['reason'])
+
                     self.notification_service.create_notification(
                         user_id=user_id,
                         title="Prestito Rifiutato",
@@ -276,6 +354,9 @@ class LoanService:
                     
             except Exception as e:
                 
+                self.loan_application_repository.update_status(application_id, 'rejected', evaluation['reason'])
+
+
                 self.notification_service.create_notification(
                     user_id=application_data.get('userId', 'unknown'),
                     title=" Errore Valutazione",

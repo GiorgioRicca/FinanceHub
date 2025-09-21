@@ -11,6 +11,9 @@ source venv/bin/activate
 
 
 pip install -r server/requirements.txt || \
-pip install Flask flask-cors marshmallow python-dateutil flask-swagger-ui
+pip install Flask flask-cors marshmallow python-dateutil flask-swagger-ui types-Flask-Cors
+
+npm run dev
 
 #Frontend disponibile su http://localhost:5173/
+
